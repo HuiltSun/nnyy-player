@@ -13,11 +13,10 @@ use std::{collections::HashMap, sync::Arc};
 const PLAYER_HTML: &str = include_str!("../../nnyy_player.html");
 const HISTORY_HTML: &str = include_str!("../../history.html");
 
-// 修改为你自己托管的地址（GitHub Raw、CDN 均可）
 const REMOTE_PLAYER_URL: &str =
-    "https://raw.githubusercontent.com/your/repo/main/nnyy_player.html";
+    "https://raw.githubusercontent.com/HuiltSun/nnyy-player/master/nnyy_player.html";
 const REMOTE_HISTORY_URL: &str =
-    "https://raw.githubusercontent.com/your/repo/main/history.html";
+    "https://raw.githubusercontent.com/HuiltSun/nnyy-player/master/history.html";
 
 #[derive(Clone)]
 struct AppState {
