@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>努努影院 · 播放 / 下载器</title>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --line:#262b36; --txt:#e6e8ec;
+    --sub:#9aa3b0; --accent:#ec2d7a; --accent2:#2d8cec;
+  }
+  *{box-sizing:border-box;scrollbar-width:none}
+  *::-webkit-scrollbar{display:none}
+  body{margin:0;background:var(--bg);color:var(--txt);
+       font:14px/1.5 system-ui,"Segoe UI","Microsoft YaHei",sans-serif}
+  a{color:var(--accent2);text-decoration:none}
+  header{padding:16px 20px;border-bottom:1px solid var(--line);
+         display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  header h1{font-size:16px;margin:0;color:var(--accent);white-space:nowrap}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  input,button,select{font:inherit;color:var(--txt);background:var(--panel);
+        border:1px solid var(--line);border-radius:8px;padding:8px 12px;outline:none}
+  input:focus{border-color:var(--accent)}
+  button{cursor:pointer;background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+  button.ghost{background:var(--panel);color:var(--txt);border-color:var(--line);font-weight:500}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  #q{min-width:240px;flex:1}
+  main{display:grid;grid-template-columns:200px 1fr;gap:0;min-height:calc(100vh - 62px)}
+  @media(max-width:960px){
+    main{grid-template-columns:1fr}
+    .content{grid-template-columns:1fr;height:auto;overflow:visible}
+    .ep-col{border-left:none;border-top:1px solid var(--line);max-height:240px}
+    .lines{grid-template-columns:repeat(4,1fr)}
+  }
+  .side{border-right:1px solid var(--line);overflow-y:auto;max-height:calc(100vh - 62px)}
+  .results{list-style:none;margin:0;padding:8px}
+  .results li{padding:10px 12px;border-radius:8px;cursor:pointer;margin-bottom:4px}
+  .results li:hover{background:var(--panel)}
+  .results li.on{background:#23283a;outline:1px solid var(--accent)}
+  .results .t{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .results .m{color:var(--sub);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .content{display:grid;grid-template-columns:1fr 220px;gap:0;overflow:hidden;height:calc(100vh - 62px)}
+  .player-col{padding:14px 18px;overflow-y:auto;min-width:0}
+  .media-title{font-size:17px;font-weight:700;line-height:1.4;margin:0 0 4px;color:var(--txt)}
+  .media-ep-label{font-size:13px;color:var(--sub);margin-bottom:8px}
+  .ep-col{border-left:1px solid var(--line);overflow-y:auto;padding:10px 8px;display:flex;flex-direction:column;gap:0}
+  .ep-col-label{font-size:13px;color:var(--txt);font-weight:700;padding:0 2px 10px;border-bottom:1px solid var(--line);margin-bottom:10px;flex-shrink:0}
+  .ep-col-sublabel{font-size:11px;color:var(--sub);letter-spacing:.06em;margin:10px 0 6px 2px;font-weight:600}
+  .video-wrap{background:#000;border-radius:8px;overflow:hidden;aspect-ratio:16/9;width:100%}
+  video{width:100%;height:100%;display:block;background:#000}
+  .eps{display:grid;grid-template-columns:repeat(2,1fr);gap:5px;margin:0}
+  .eps button{background:var(--panel);border:1px solid var(--line);color:var(--txt);
+        font-weight:400;padding:7px 4px;font-size:12px;text-align:center;border-radius:6px;
+        width:100%;transition:background .12s,border-color .12s}
+  .eps button:hover{background:#232a3d;border-color:var(--accent2)}
+  .eps button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+  .lines{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:0 0 8px;flex-shrink:0}
+  .lines button{background:var(--panel);border:1px solid var(--line);color:var(--sub);
+        padding:5px 6px;font-size:12px;border-radius:6px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lines button.on{color:#fff;border-color:var(--accent2);background:#1d2738}
+  .lines button .spd{font-size:10px;opacity:.9}
+  .bar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:10px}
+  .bar-nav{display:flex;gap:4px}
+  .bar-nav button{padding:6px 14px;font-size:13px}
+  .muted{color:var(--sub)}
+  .status{font-size:13px;color:var(--sub);margin-left:auto}
+  .src{word-break:break-all;font-size:12px;color:var(--sub);
+       background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-top:10px}
+  .prog{height:6px;background:var(--panel);border-radius:4px;overflow:hidden;margin-top:10px;display:none}
+  .prog > i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+  details{margin-top:12px}
+  summary{cursor:pointer;color:var(--sub)}
+  .cfg{font-size:12px}
+  .cfg input{padding:6px 8px}
+  code{background:#0b0d11;border:1px solid var(--line);border-radius:6px;padding:1px 6px}
+  .hint{font-size:12px;color:var(--sub);margin-top:6px}
+  #banner{background:#1e1408;border-bottom:2px solid #ec7a2d;padding:10px 20px;
+          font-size:13px;display:none}
+  #banner code{background:#0b0d11}
+  /* 搜索历史 */
+  .hist-section{padding:6px 4px}
+  .hist-hdr{display:flex;align-items:center;justify-content:space-between;padding:2px 8px 8px;border-bottom:1px solid var(--line);margin-bottom:4px}
+  .hist-hdr-title{font-size:11px;color:var(--sub);letter-spacing:.06em;font-weight:600;text-transform:uppercase}
+  .hist-clear{font-size:11px;background:transparent;border:none;color:var(--sub);padding:2px 6px;font-weight:400;border-radius:4px;cursor:pointer}
+  .hist-clear:hover{color:var(--accent);background:transparent}
+  .hist-item{display:flex;align-items:center;padding:7px 8px;border-radius:6px;cursor:pointer;gap:8px;font-size:13px;color:var(--sub)}
+  .hist-item:hover{background:var(--panel);color:var(--txt)}
+  .hist-item .hist-q{flex:1}
+  .hist-del{margin-left:auto;font-size:14px;background:transparent;border:none;color:var(--sub);padding:0 4px;opacity:0;cursor:pointer;line-height:1}
+  .hist-item:hover .hist-del{opacity:.7}
+  .hist-del:hover{opacity:1!important;color:var(--accent)}
+  /* 续播提示条 */
+  .resume-bar{background:#111827;border-left:3px solid var(--accent2);border-radius:6px;
+              padding:9px 12px;margin-bottom:10px;display:none;align-items:center;gap:10px;flex-wrap:wrap}
+  .resume-info{flex:1;font-size:13px;color:var(--sub)}
+  .resume-info strong{color:var(--txt)}
+  .resume-btn{padding:5px 14px;font-size:12px}
+  .resume-x{background:transparent;border:none;color:var(--sub);font-size:18px;line-height:1;padding:0 2px;cursor:pointer;font-weight:300}
+  .badge{display:inline-block;font-size:10px;padding:1px 5px;border-radius:3px;font-weight:600;vertical-align:middle;margin-left:5px;line-height:1.4}
+  .badge-nnyy{background:#ec2d7a22;color:#ec2d7a;border:1px solid #ec2d7a55}
+  .badge-yh5dm{background:#f8920022;color:#f89200;border:1px solid #f8920055}
+  #srcSel{padding:5px 8px;font-size:13px;border-radius:6px;min-width:0}
+  #tooltip{position:fixed;background:var(--panel);border:1px solid var(--line);
+           border-radius:8px;padding:10px 14px;font-size:13px;line-height:1.7;
+           box-shadow:0 6px 24px #000a;pointer-events:none;z-index:200;
+           display:none;max-width:280px;word-break:break-all}
+  #tooltip .tt-title{font-weight:700;color:var(--txt);margin-bottom:4px;font-size:14px}
+  #tooltip .tt-meta{color:var(--sub);font-size:12px}
+</style>
+</head>
+<body>
+<div id="tooltip"></div>
+<div id="banner">
+  ⚠ 当前从 <code>file://</code> 打开，浏览器会拦截跨域请求。请改用本地代理服务器：<br>
+  1. 终端执行 <code>python server.py</code> &nbsp;|&nbsp;
+  2. 浏览器打开 <code>http://localhost:8080</code>
+</div>
+<input id="site"  type="hidden" value="https://nnyy.in">
+<input id="proxy" type="hidden" value="">
+<header>
+  <a href="/history" style="font-size:12px;color:var(--sub);text-decoration:none;white-space:nowrap" onmouseover="this.style.color='var(--txt)'" onmouseout="this.style.color='var(--sub)'">观看记录</a>
+  <form id="searchForm" class="row" style="flex:1">
+    <select id="srcSel">
+      <option value="both">两源</option>
+      <option value="nnyy">努努</option>
+      <option value="yh5dm">樱花</option>
+    </select>
+    <input id="q" placeholder="搜索电影 / 电视剧 / 综艺 / 动漫…" autocomplete="off">
+    <button type="submit">搜索</button>
+  </form>
+</header>
+
+<main>
+  <div class="side">
+    <ul id="results" class="results"></ul>
+  </div>
+
+  <div class="content">
+    <div class="player-col">
+      <div id="mediaTitle" class="media-title"></div>
+      <div id="mediaEpLabel" class="media-ep-label"></div>
+      <div id="resumeBar" class="resume-bar">
+        <div class="resume-info">上次看到 <strong id="resumeLabel"></strong></div>
+        <button id="resumeBtn" class="ghost resume-btn">继续播放</button>
+        <button class="resume-x" id="resumeX">×</button>
+      </div>
+      <div class="video-wrap"><video id="video" controls playsinline></video></div>
+      <div class="bar">
+        <div class="bar-nav">
+          <button id="btnPrev" class="ghost" disabled>◀ 上集</button>
+          <button id="btnNext" class="ghost" disabled>▶ 下集</button>
+        </div>
+        <button id="btnDownload" class="ghost" disabled>⬇ 下载</button>
+        <button id="btnYtdlp"   class="ghost" disabled>yt-dlp</button>
+        <button id="btnFfmpeg"  class="ghost" disabled>ffmpeg</button>
+        <span id="status" class="status"></span>
+      </div>
+      <div class="prog" id="prog"><i></i></div>
+      <div id="src" class="src" style="display:none"></div>
+      <details>
+        <summary>跨域 / 下载说明</summary>
+        <div class="hint" style="line-height:1.7">
+          • <b>搜索/取地址</b>调用的是 nnyy.in,本地打开会有 CORS 限制,需在「设置」里填代理,或用浏览器「禁用 CORS」的扩展。<br>
+          • <b>播放</b>用 hls.js,视频 CDN 一般允许跨域,通常无需代理。<br>
+          • <b>浏览器下载</b>会抓取全部 .ts 切片并合并为一个 <code>.ts</code> 文件(支持 AES-128 加密);若失败或切片很多,改用「复制 yt-dlp 命令」在本机下载更稳。
+        </div>
+      </details>
+    </div>
+    <div class="ep-col">
+      <div class="ep-col-label">选择播放路线</div>
+      <div id="lines" class="lines"></div>
+      <div class="ep-col-sublabel">选集</div>
+      <div id="eps" class="eps"></div>
+    </div>
+  </div>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const site  = () => $('#site').value.replace(/\/+$/,'');
+const proxy = () => $('#proxy').value.trim();
+
+// 自动检测运行环境
+const isLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+const isFile      = location.protocol === 'file:';
+
+if (isFile) {
+  $('#banner').style.display = 'block';
+}
+
+// 代理选择：localhost 自动用本地 server.py；否则用用户填写的
+function autoProxy() {
+  if (isLocalhost) return `${location.protocol}//${location.host}/proxy?url=`;
+  return proxy();
+}
+const px = u => { const p = autoProxy(); return p ? p + encodeURIComponent(u) : u; };
+const setStatus = t => $('#status').textContent = t || '';
+
+let cur = { id:null, cat:null, title:'', slug:null, plays:[], lineIdx:0, source:'nnyy', yhLines:[], yhEps:{}, cover:'' };
+let hls = null;
+
+const YH5DM = 'https://www.yh5dm.cc';
+
+/* ---------- 搜索 ---------- */
+$('#searchForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const kw = $('#q').value.trim();
+  if(!kw) return;
+  const src = $('#srcSel').value;
+  setStatus('搜索中…');
+  const tasks = [];
+  if(src==='nnyy'||src==='both') tasks.push(
+    fetch(px(`${site()}/so?q=${encodeURIComponent(kw)}`)).then(r=>r.text())
+      .then(html=>parseSearch(html).map(x=>({...x,source:'nnyy'}))).catch(()=>[])
+  );
+  if(src==='yh5dm'||src==='both') tasks.push(
+    fetch(px(`${YH5DM}/vodsearch/-------------.html?wd=${encodeURIComponent(kw)}`)).then(r=>r.text())
+      .then(html=>parseSearchYH5DM(html)).catch(()=>[])
+  );
+  try{
+    const combined=(await Promise.all(tasks)).flat();
+    renderResults(combined);
+    setStatus(combined.length?'':'无结果');
+    if(combined.length) saveSearchHistory(kw);
+  }catch(err){ setStatus('搜索失败:'+err.message); }
+});
+
+function parseSearch(html){
+  const doc = new DOMParser().parseFromString(html,'text/html');
+  const out = [];
+  doc.querySelectorAll('.lists-content li').forEach(li=>{
+    const a = li.querySelector('h2 a'); if(!a) return;
+    const m = a.getAttribute('href').match(/\/([^/]+)\/(\d+)\.html/); if(!m) return;
+    const o = li.querySelectorAll('.countrie .orange');
+    out.push({
+      cat:m[1], id:m[2], title:a.textContent.trim(),
+      note:(li.querySelector('.note span')||{}).textContent||'',
+      year:o[0]?o[0].textContent.trim():'', area:o[1]?o[1].textContent.trim():'',
+    });
+  });
+  return out;
+}
+
+const _tt=$('#tooltip');
+function _ttShow(e,it){
+  const meta=[it.year,it.area,it.cat,it.note].filter(Boolean).join(' · ');
+  _tt.innerHTML=`<div class="tt-title">${it.title}</div>${meta?`<div class="tt-meta">${meta}</div>`:''}`;
+  _tt.style.display='block';
+  _ttPos(e);
+}
+function _ttPos(e){
+  const x=e.clientX+14, y=e.clientY+14;
+  const w=_tt.offsetWidth, h=_tt.offsetHeight;
+  _tt.style.left=(x+w>innerWidth ? e.clientX-w-6 : x)+'px';
+  _tt.style.top =(y+h>innerHeight? e.clientY-h-6 : y)+'px';
+}
+function _ttHide(){ _tt.style.display='none'; }
+
+function renderResults(list){
+  const ul = $('#results'); ul.innerHTML='';
+  if(!list.length){ ul.innerHTML='<li class="muted">无结果</li>'; return; }
+  list.forEach(it=>{
+    const li=document.createElement('li');
+    const badge=it.source==='yh5dm'
+      ?'<span class="badge badge-yh5dm">樱花</span>'
+      :'<span class="badge badge-nnyy">努努</span>';
+    li.innerHTML=`<div class="t">${it.title}${badge}</div>
+      <div class="m">${[it.year,it.area,it.cat,it.note].filter(Boolean).join(' · ')}</div>`;
+    li.addEventListener('mouseenter', e=>_ttShow(e,it));
+    li.addEventListener('mousemove',  _ttPos);
+    li.addEventListener('mouseleave', _ttHide);
+    li.onclick=()=>{ _ttHide(); [...ul.children].forEach(x=>x.classList.remove('on'));
+      li.classList.add('on');
+      it.source==='yh5dm'?openDetailYH5DM(it):openDetail(it); };
+    ul.appendChild(li);
+  });
+}
+
+/* ---------- 详情:取分集 ---------- */
+function extractCover(html){
+  const m=html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
+          ||html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
+  return m?m[1]:'';
+}
+
+async function openDetail(it){
+  cur.id=it.id; cur.cat=it.cat; cur.title=it.title; cur.source='nnyy'; cur.cover='';
+  $('#mediaTitle').textContent=it.title;
+  $('#mediaEpLabel').textContent='';
+  $('#resumeBar').style.display='none';
+  $('#eps').innerHTML=''; $('#lines').innerHTML='';
+  setStatus('读取剧集…');
+  try{
+    const html = await (await fetch(px(`${site()}/${it.cat}/${it.id}.html`))).text();
+    cur.cover = extractCover(html);
+    const eps  = parseEpisodes(html);
+    renderEps(eps);
+    setStatus('');
+    checkProgress(it.id, 'nnyy');
+    if(eps.length) selectEp(eps[0]);
+  }catch(err){ setStatus('读取失败:'+err.message); }
+}
+
+function parseEpisodes(html){
+  const doc=new DOMParser().parseFromString(html,'text/html');
+  const out=[];
+  doc.querySelectorAll('.play-btn[ep_slug]').forEach(li=>{
+    out.push({ slug:li.getAttribute('ep_slug'),
+               label:(li.textContent||'').trim() });
+  });
+  // 页面默认倒序,转成正序展示
+  return out.reverse();
+}
+
+function renderEps(eps){
+  const box=$('#eps'); box.innerHTML='';
+  eps.forEach(ep=>{
+    const b=document.createElement('button');
+    b.textContent=ep.label; b.dataset.slug=ep.slug;
+    b.onclick=()=>selectEp(ep);
+    box.appendChild(b);
+  });
+}
+
+/* ---------- 选集:取播放数据 ---------- */
+async function selectEp(ep){
+  cur.slug=ep.slug;
+  $('#mediaEpLabel').textContent=ep.label ? '> ' + ep.label : '';
+  [...$('#eps').children].forEach(b=>b.classList.toggle('on',b.dataset.slug===ep.slug));
+  // 上集/下集按钮可用状态
+  const btns=[...$('#eps').children];
+  const idx=btns.findIndex(b=>b.dataset.slug===ep.slug);
+  $('#btnPrev').disabled = idx<=0;
+  $('#btnNext').disabled = idx<0 || idx>=btns.length-1;
+  setStatus('获取播放地址…');
+  try{
+    const data = await (await fetch(px(`${site()}/_gp/${cur.id}/${ep.slug}`))).json();
+    cur.plays = data.video_plays || [];
+    cur.lineIdx = 0;
+    renderLines();
+    if(cur.plays.length) playLine(0);
+    else setStatus('无播放源');
+  }catch(err){ setStatus('获取失败:'+err.message); }
+}
+
+function renderLines(){
+  const box=$('#lines'); box.innerHTML='';
+  if(cur.plays.length>=2){
+    cur.plays.forEach((_,i)=>{
+      const b=document.createElement('button');
+      b.innerHTML='线路'+(i+1);
+      b.dataset.idx=i;
+      b.onclick=()=>playLine(i);
+      box.appendChild(b);
+    });
+  }
+  if(cur.plays.length>=1){
+    const tb=document.createElement('button');
+    tb.id='btnTest'; tb.className='ghost';
+    tb.textContent='⚡ 测速';
+    tb.style.cssText='font-size:12px';
+    tb.onclick=testLines;
+    box.appendChild(tb);
+  }
+}
+
+function currentSrc(){
+  const p=cur.plays[cur.lineIdx]; if(!p) return '';
+  return decodeURIComponent(p.play_data||'');
+}
+
+function playLine(i){
+  cur.lineIdx=i;
+  [...$('#lines').querySelectorAll('[data-idx]')].forEach(b=>b.classList.toggle('on',+b.dataset.idx===i));
+  const src=currentSrc();
+  if(!src){ setStatus('无效播放源'); return; }
+  $('#src').style.display='block';
+  $('#src').textContent=src;
+  ['#btnDownload','#btnYtdlp','#btnFfmpeg'].forEach(s=>$(s).disabled=false);
+  play(src);
+}
+
+function navEp(delta){
+  const btns=[...$('#eps').children];
+  const idx=btns.findIndex(b=>b.dataset.slug===cur.slug);
+  const next=btns[idx+delta];
+  if(next) next.click();
+}
+$('#btnPrev').onclick=()=>navEp(-1);
+$('#btnNext').onclick=()=>navEp(1);
+
+function play(src){
+  const v=$('#video');
+  if(hls){ hls.destroy(); hls=null; }
+  if(v.canPlayType('application/vnd.apple.mpegurl')){ v.src=src; }
+  else if(window.Hls && Hls.isSupported()){
+    hls=new Hls(); hls.loadSource(src); hls.attachMedia(v);
+    hls.on(Hls.Events.ERROR,(e,d)=>{ if(d.fatal) setStatus('HLS错误,换条线路试试'); });
+  } else setStatus('浏览器不支持 HLS');
+}
+
+/* ---------- 命令复制 ---------- */
+function fileName(ext){
+  const ep=[...$('#eps').children].find(b=>b.classList.contains('on'));
+  return `${cur.title}_${ep?ep.textContent:'video'}.${ext}`.replace(/[\\/:*?"<>|]/g,'_');
+}
+function getReferer(){
+  if(cur.source==='yh5dm') return `${YH5DM}/p/${cur.slug}.html`;
+  return `${site()}/${cur.cat}/${cur.id}.html`;
+}
+$('#btnYtdlp').onclick=()=>copy(
+  `yt-dlp --add-header "Referer:${getReferer()}" -N 8 -o "${fileName('mp4')}" "${currentSrc()}"`);
+$('#btnFfmpeg').onclick=()=>copy(
+  `ffmpeg -headers "Referer: ${getReferer()}\\r\\n" -i "${currentSrc()}" -c copy "${fileName('mp4')}"`);
+function copy(t){ navigator.clipboard.writeText(t).then(()=>setStatus('已复制命令到剪贴板')); }
+
+/* ---------- 浏览器内下载(抓取并合并 TS) ---------- */
+$('#btnDownload').onclick=async()=>{
+  const src=currentSrc(); if(!src) return;
+  const prog=$('#prog'), bar=prog.querySelector('i');
+  prog.style.display='block'; bar.style.width='0';
+  try{
+    setStatus('解析播放列表…');
+    const segs = await resolveSegments(src);
+    if(!segs.length){ setStatus('未找到切片'); return; }
+    const buffers=[];
+    for(let i=0;i<segs.length;i++){
+      setStatus(`下载切片 ${i+1}/${segs.length}`);
+      bar.style.width=((i)/segs.length*100).toFixed(1)+'%';
+      let buf=await (await fetch(segs[i].url)).arrayBuffer();
+      if(segs[i].key) buf=await decryptAES(buf,segs[i].key,segs[i].iv);
+      buffers.push(new Uint8Array(buf));
+    }
+    bar.style.width='100%';
+    const blob=new Blob(buffers,{type:'video/mp2t'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob); a.download=fileName('ts'); a.click();
+    setStatus('下载完成(.ts,可用播放器直接看或 ffmpeg 转 mp4)');
+  }catch(err){
+    setStatus('下载失败:'+err.message+' — 建议改用 yt-dlp 命令');
+  }finally{ setTimeout(()=>prog.style.display='none',1500); }
+};
+
+// 解析 m3u8 → 切片列表(支持 master 嵌套 + AES-128)
+async function resolveSegments(url){
+  let text=await (await fetch(url)).text();
+  // master playlist:取第一个清晰度
+  if(/#EXT-X-STREAM-INF/.test(text)){
+    const variant=text.split('\n').find(l=>l && !l.startsWith('#'));
+    url=new URL(variant.trim(),url).href;
+    text=await (await fetch(url)).text();
+  }
+  const lines=text.split('\n');
+  const segs=[]; let key=null, iv=null, seq=0;
+  for(const lineRaw of lines){
+    const line=lineRaw.trim();
+    const mSeq=line.match(/#EXT-X-MEDIA-SEQUENCE:(\d+)/);
+    if(mSeq){ seq=+mSeq[1]; continue; }
+    if(line.startsWith('#EXT-X-KEY')){
+      const method=(line.match(/METHOD=([^,]+)/)||[])[1];
+      if(method==='NONE'){ key=null; continue; }
+      const uri=(line.match(/URI="([^"]+)"/)||[])[1];
+      const ivHex=(line.match(/IV=0x([0-9A-Fa-f]+)/)||[])[1];
+      const keyBuf=await (await fetch(new URL(uri,url).href)).arrayBuffer();
+      key=await crypto.subtle.importKey('raw',keyBuf,{name:'AES-CBC'},false,['decrypt']);
+      iv=ivHex?hexToBytes(ivHex):null;
+      continue;
+    }
+    if(line && !line.startsWith('#')){
+      const segUrl=new URL(line,url).href;
+      let useIv=iv;
+      if(key && !iv){ useIv=new Uint8Array(16); new DataView(useIv.buffer).setUint32(12,seq); }
+      segs.push({url:segUrl,key,iv:useIv}); seq++;
+    }
+  }
+  return segs;
+}
+async function decryptAES(buf,key,iv){
+  return await crypto.subtle.decrypt({name:'AES-CBC',iv},key,buf);
+}
+function hexToBytes(h){ const a=new Uint8Array(h.length/2);
+  for(let i=0;i<a.length;i++) a[i]=parseInt(h.substr(i*2,2),16); return a; }
+
+/* ---------- 线路测速 ---------- */
+
+// 延迟 → 颜色: 绿(快) / 黄(中) / 橙(慢) / 红(超时)
+function lineColor(ms, ok){
+  if(!ok) return '#ec2d2d';
+  if(ms<500)  return '#2deca0';
+  if(ms<1500) return '#eccc2d';
+  return '#ec7a2d';
+}
+function applyLineColor(btn, ok, ms){
+  const col=lineColor(ms,ok);
+  btn.style.borderColor=col;
+  btn.style.color=ok?col:'#ec2d2d';
+  if(!ok) btn.style.opacity='.6';
+}
+
+/* nnyy 测速 */
+async function testLines(){
+  const box=$('#lines');
+  const tb=$('#btnTest');
+  if(tb) tb.disabled=true;
+  const lineBtns=[...box.querySelectorAll('[data-idx]')];
+
+  if(!lineBtns.length){
+    const src=currentSrc();
+    if(!src){ if(tb)tb.disabled=false; return; }
+    tb.textContent='测速中…';
+    const t0=performance.now();
+    try{
+      const ctrl=new AbortController();
+      const tid=setTimeout(()=>ctrl.abort(),6000);
+      await (await fetch(src,{signal:ctrl.signal})).text(); clearTimeout(tid);
+      const ms=Math.round(performance.now()-t0);
+      setStatus(`当前线路延迟 ${ms}ms`);
+      applyLineColor(tb,true,ms);
+    }catch{ setStatus('当前线路超时'); applyLineColor(tb,false,9999); }
+    tb.textContent='⚡ 测速'; tb.disabled=false; return;
+  }
+
+  lineBtns.forEach(b=>{ b.innerHTML='线路'+(+b.dataset.idx+1)+'<span class="spd"> …</span>'; });
+  setStatus('测速中…');
+
+  const results=await Promise.all(cur.plays.map(async(p,i)=>{
+    const src=decodeURIComponent(p.play_data||'');
+    if(!src) return {i,ok:false,ms:9999};
+    const t0=performance.now();
+    try{
+      const ctrl=new AbortController();
+      const tid=setTimeout(()=>ctrl.abort(),6000);
+      await (await fetch(src,{signal:ctrl.signal})).text(); clearTimeout(tid);
+      return {i,ok:true,ms:Math.round(performance.now()-t0)};
+    }catch{ return {i,ok:false,ms:9999}; }
+  }));
+
+  lineBtns.forEach(b=>{
+    const r=results[+b.dataset.idx];
+    const spd=b.querySelector('.spd');
+    applyLineColor(b,r.ok,r.ms);
+    if(spd){ spd.textContent=' '+(r.ok?r.ms+'ms':'超时'); }
+  });
+
+  const best=results.filter(r=>r.ok).sort((a,b)=>a.ms-b.ms)[0];
+  if(best!=null){
+    if(best.i!==cur.lineIdx) playLine(best.i);
+    setStatus(`已切换到最优线路${best.i+1}（${best.ms}ms）`);
+  } else setStatus('所有线路均超时');
+
+  if(tb) tb.disabled=false;
+}
+
+/* yh5dm 测速 */
+async function testLinesYH5DM(){
+  const box=$('#lines');
+  const tb=box.querySelector('#btnTestYH');
+  if(tb) tb.disabled=true;
+  const lineBtns=[...box.querySelectorAll('[data-sid]')];
+  if(!lineBtns.length||!cur.id) return;
+
+  const nid=cur.slug?cur.slug.split('-').pop():'1';
+  lineBtns.forEach(b=>{ const spd=b.querySelector('.spd'); if(spd) spd.textContent=' …'; });
+  setStatus('测速中…');
+
+  const results=await Promise.all(lineBtns.map(async b=>{
+    const sid=b.dataset.sid;
+    const t0=performance.now();
+    try{
+      const ctrl=new AbortController();
+      const tid=setTimeout(()=>ctrl.abort(),6000);
+      const html=await(await fetch(px(`${YH5DM}/p/${cur.id}-${sid}-${nid}.html`),{signal:ctrl.signal})).text();
+      clearTimeout(tid);
+      const ms=Math.round(performance.now()-t0);
+      const m=html.substring(html.indexOf('player_aaaa')).match(/"url"\s*:\s*"([^"]+\.m3u8[^"]*)"/);
+      return {sid,ok:!!m,ms,url:m?m[1].replace(/\\\//g,'/'):null};
+    }catch{ return {sid,ok:false,ms:9999,url:null}; }
+  }));
+
+  lineBtns.forEach(b=>{
+    const r=results.find(x=>x.sid===b.dataset.sid);
+    if(!r) return;
+    const spd=b.querySelector('.spd');
+    applyLineColor(b,r.ok,r.ms);
+    if(spd) spd.textContent=' '+(r.ok?r.ms+'ms':'超时');
+  });
+
+  const best=results.filter(r=>r.ok).sort((a,b)=>a.ms-b.ms)[0];
+  if(best){
+    const bestBtn=lineBtns.find(b=>b.dataset.sid===best.sid);
+    if(bestBtn){ bestBtn.click(); }
+    setStatus(`已切换到最优线路（${best.ms}ms）`);
+  } else setStatus('所有线路均超时');
+
+  if(tb) tb.disabled=false;
+}
+
+/* ========== 本地持久化 (localStorage) ========== */
+
+const LS_HIST = 'nnyy_history';
+const LS_PROG = 'nnyy_progress';
+
+// ── 搜索历史 ──
+function getHistory(){
+  try{ return JSON.parse(localStorage.getItem(LS_HIST))||[]; }catch{ return []; }
+}
+function saveSearchHistory(query){
+  const hist=getHistory().filter(h=>h.query!==query);
+  hist.unshift({query, at: new Date().toLocaleString('zh-CN')});
+  localStorage.setItem(LS_HIST, JSON.stringify(hist.slice(0,20)));
+}
+function deleteHistoryItem(query){
+  localStorage.setItem(LS_HIST, JSON.stringify(getHistory().filter(h=>h.query!==query)));
+}
+function clearHistory(){
+  localStorage.removeItem(LS_HIST);
+}
+
+function showHistory(){
+  const ul=$('#results'); ul.innerHTML='';
+  const hist=getHistory();
+  if(!hist.length){
+    ul.innerHTML='<li style="padding:12px 16px;color:var(--sub);font-size:13px">暂无搜索历史</li>';
+    return;
+  }
+  const sec=document.createElement('li');
+  sec.style.cssText='list-style:none;padding:0';
+  const wrap=document.createElement('div');
+  wrap.className='hist-section';
+  wrap.innerHTML=`<div class="hist-hdr">
+    <span class="hist-hdr-title">最近搜索</span>
+    <button class="hist-clear" id="histClearBtn">清除全部</button>
+  </div>`;
+  hist.forEach(h=>{
+    const div=document.createElement('div');
+    div.className='hist-item';
+    div.innerHTML=`<span style="font-size:12px;color:var(--sub)">⏱</span>
+      <span class="hist-q">${h.query}</span>
+      <button class="hist-del" title="删除">×</button>`;
+    div.querySelector('.hist-q').onclick=()=>runSearch(h.query);
+    div.querySelector('.hist-del').onclick=e=>{
+      e.stopPropagation();
+      deleteHistoryItem(h.query);
+      showHistory();
+    };
+    wrap.appendChild(div);
+  });
+  sec.appendChild(wrap);
+  ul.appendChild(sec);
+  $('#histClearBtn').onclick=()=>{ clearHistory(); showHistory(); };
+}
+
+function runSearch(kw){
+  $('#q').value=kw;
+  $('#searchForm').dispatchEvent(new Event('submit',{cancelable:true,bubbles:true}));
+}
+
+$('#q').addEventListener('focus',()=>{ if(!$('#q').value.trim()) showHistory(); });
+$('#q').addEventListener('input',()=>{ if(!$('#q').value.trim()) showHistory(); });
+
+// 从历史页跳转过来时自动打开上次记录
+(function(){
+  const hint=sessionStorage.getItem('nnyy_resume_hint');
+  if(!hint) return;
+  sessionStorage.removeItem('nnyy_resume_hint');
+  try{
+    const e=JSON.parse(hint);
+    if(e.source==='yh5dm'){
+      openDetailYH5DM({id:e.vid_id, title:e.title});
+    } else {
+      openDetail({id:e.vid_id, cat:e.cat, title:e.title, source:'nnyy'});
+    }
+  }catch{}
+})();
+
+// ── 播放进度 ──
+let _saveTimer=null, _resumeData=null;
+
+function getProgress(vidId, source){
+  try{
+    const all=JSON.parse(localStorage.getItem(LS_PROG))||{};
+    return all[`${source}:${vidId}`]||null;
+  }catch{ return null; }
+}
+function saveProgressLocal(data){
+  try{
+    const all=JSON.parse(localStorage.getItem(LS_PROG))||{};
+    all[`${data.source}:${data.vid_id}`]={...data, at: new Date().toLocaleString('zh-CN')};
+    const keys=Object.keys(all);
+    if(keys.length>100) keys.sort((a,b)=>new Date(all[a].at)-new Date(all[b].at))
+      .slice(0,keys.length-100).forEach(k=>delete all[k]);
+    localStorage.setItem(LS_PROG, JSON.stringify(all));
+  }catch{}
+}
+
+function scheduleProgressSave(){
+  clearTimeout(_saveTimer);
+  _saveTimer=setTimeout(doSaveProgress, 3000);
+}
+function doSaveProgress(){
+  const v=$('#video');
+  if(!cur.id||!cur.source||!v.currentTime||v.currentTime<3||isNaN(v.duration)) return;
+  const epLabel=($('#mediaEpLabel').textContent||'').replace(/^>\s*/,'').trim();
+  saveProgressLocal({
+    vid_id:cur.id, source:cur.source, title:cur.title,
+    cat:cur.cat||'', slug:cur.slug, ep_label:epLabel,
+    position:v.currentTime, duration:v.duration,
+    cover:cur.cover||''
+  });
+}
+
+$('#video').addEventListener('timeupdate', scheduleProgressSave);
+
+function checkProgress(vidId, source){
+  const data=getProgress(vidId, source);
+  _resumeData=data;
+  if(data&&data.position>5){
+    const m=Math.floor(data.position/60), s=String(Math.floor(data.position%60)).padStart(2,'0');
+    $('#resumeLabel').textContent=`${data.ep_label||'未知集'}  ${m}:${s}`;
+    $('#resumeBar').style.display='flex';
+  } else { $('#resumeBar').style.display='none'; }
+}
+
+$('#resumeX').onclick=()=>{ $('#resumeBar').style.display='none'; };
+
+$('#resumeBtn').onclick=()=>{
+  if(!_resumeData) return;
+  $('#resumeBar').style.display='none';
+  const btn=[...$('#eps').children].find(b=>b.dataset.slug===_resumeData.slug);
+  if(btn){
+    const seekPos=_resumeData.position;
+    const seekOnce=()=>{ $('#video').currentTime=seekPos; $('#video').removeEventListener('canplay',seekOnce); };
+    $('#video').addEventListener('canplay',seekOnce);
+    btn.click();
+  }
+};
+
+/* ========== 樱花动漫 (yh5dm.cc) ========== */
+
+function parseSearchYH5DM(html){
+  const doc=new DOMParser().parseFromString(html,'text/html');
+  const seen=new Set(); const out=[];
+  doc.querySelectorAll('a[href*="/v/"]').forEach(a=>{
+    const m=a.getAttribute('href').match(/\/v\/(\d+)\.html/);
+    if(!m||seen.has(m[1])) return;
+    seen.add(m[1]);
+    let el=a.parentElement; let title='';
+    for(let i=0;i<6&&!title;i++){
+      const h=el?.querySelector('h3,h2,.vodname,[class*="title"]');
+      if(h) title=h.textContent.trim().split('\n')[0].trim();
+      el=el?.parentElement;
+    }
+    if(title) out.push({id:m[1],title,source:'yh5dm'});
+  });
+  return out;
+}
+
+function parseDetailYH5DM(html){
+  const doc=new DOMParser().parseFromString(html,'text/html');
+  const lines=[...doc.querySelectorAll('a[href^="#playlist"]')].map(a=>({
+    sid:a.getAttribute('href').replace('#playlist',''),
+    name:a.textContent.trim()
+  }));
+  const eps={};
+  doc.querySelectorAll('.tab-pane[id^="playlist"] .listitem a').forEach(a=>{
+    const m=a.getAttribute('href').match(/\/p\/(\d+)-(\d+)-(\d+)\.html/);
+    if(!m) return;
+    const sid=m[2];
+    if(!eps[sid]) eps[sid]=[];
+    eps[sid].push({slug:`${m[1]}-${m[2]}-${m[3]}`,label:a.textContent.trim()});
+  });
+  return {lines,eps};
+}
+
+async function openDetailYH5DM(it){
+  cur.id=it.id; cur.title=it.title; cur.source='yh5dm'; cur.slug=null;
+  cur.plays=[]; cur.lineIdx=0; cur.cover='';
+  $('#mediaTitle').textContent=it.title;
+  $('#mediaEpLabel').textContent='';
+  $('#resumeBar').style.display='none';
+  $('#eps').innerHTML=''; $('#lines').innerHTML='';
+  ['#btnDownload','#btnYtdlp','#btnFfmpeg','#btnPrev','#btnNext'].forEach(s=>$(s).disabled=true);
+  setStatus('读取剧集…');
+  try{
+    const html=await(await fetch(px(`${YH5DM}/v/${it.id}.html`))).text();
+    cur.cover=extractCover(html);
+    const {lines,eps}=parseDetailYH5DM(html);
+    cur.yhLines=lines; cur.yhEps=eps;
+    const firstSid=lines[0]?.sid;
+    renderLinesYH5DM(lines,firstSid);
+    if(firstSid&&eps[firstSid]) renderEpsYH5DM(eps[firstSid]);
+    setStatus('');
+    checkProgress(it.id, 'yh5dm');
+    if(firstSid&&eps[firstSid]?.length) selectEpYH5DM(eps[firstSid][0]);
+  }catch(err){ setStatus('读取失败:'+err.message); }
+}
+
+function renderLinesYH5DM(lines,activeSid){
+  const box=$('#lines'); box.innerHTML='';
+  lines.forEach(ln=>{
+    const b=document.createElement('button');
+    b.innerHTML=`${ln.name}<span class="spd"></span>`;
+    b.dataset.sid=ln.sid;
+    b.classList.toggle('on',ln.sid===activeSid);
+    b.onclick=()=>{
+      [...box.querySelectorAll('[data-sid]')].forEach(x=>x.classList.toggle('on',x.dataset.sid===ln.sid));
+      renderEpsYH5DM(cur.yhEps[ln.sid]||[]);
+    };
+    box.appendChild(b);
+  });
+  if(lines.length>1){
+    const tb=document.createElement('button');
+    tb.id='btnTestYH'; tb.className='ghost';
+    tb.textContent='⚡ 测速'; tb.style.cssText='font-size:12px;grid-column:1/-1';
+    tb.onclick=testLinesYH5DM;
+    box.appendChild(tb);
+  }
+}
+
+function renderEpsYH5DM(eps){
+  const box=$('#eps'); box.innerHTML='';
+  eps.forEach(ep=>{
+    const b=document.createElement('button');
+    b.textContent=ep.label; b.dataset.slug=ep.slug;
+    b.classList.toggle('on',ep.slug===cur.slug);
+    b.onclick=()=>selectEpYH5DM(ep);
+    box.appendChild(b);
+  });
+}
+
+async function selectEpYH5DM(ep){
+  cur.slug=ep.slug;
+  [...$('#eps').children].forEach(b=>b.classList.toggle('on',b.dataset.slug===ep.slug));
+  $('#mediaEpLabel').textContent=ep.label?'> '+ep.label:'';
+  const btns=[...$('#eps').children];
+  const idx=btns.findIndex(b=>b.dataset.slug===ep.slug);
+  $('#btnPrev').disabled=idx<=0;
+  $('#btnNext').disabled=idx<0||idx>=btns.length-1;
+  setStatus('获取播放地址…');
+  try{
+    const html=await(await fetch(px(`${YH5DM}/p/${ep.slug}.html`))).text();
+    const start=html.indexOf('player_aaaa');
+    const m=start>=0?html.substring(start,start+4000).match(/"url"\s*:\s*"([^"]+\.m3u8[^"]*)"/):null;
+    if(!m){ setStatus('无法解析播放地址'); return; }
+    const src=m[1].replace(/\\\//g,'/');
+    cur.plays=[{play_data:encodeURIComponent(src)}]; cur.lineIdx=0;
+    $('#src').style.display='block'; $('#src').textContent=src;
+    ['#btnDownload','#btnYtdlp','#btnFfmpeg'].forEach(s=>$(s).disabled=false);
+    play(src); setStatus('');
+  }catch(err){ setStatus('获取失败:'+err.message); }
+}
+</script>
+</body>
+</html>

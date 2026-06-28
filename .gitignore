@@ -1,0 +1,5 @@
+src-tauri/target/
+node_modules/
+nnyy.db
+app-icon.png
+.claude/
